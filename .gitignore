@@ -1,0 +1,41 @@
+# Node.js dependencies
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+
+# Next.js build output
+.next/
+out/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+next-env.d.ts
+
+# VS Code settings
+.vscode/
+
+# Build output for Tailwind CSS/PostCSS
+.postcss.config.js
+tailwind.config.ts
+
+# Optional: ignore production builds if manually generated
+*.local
+
+# Ignore system-level metadata
+*.swp
