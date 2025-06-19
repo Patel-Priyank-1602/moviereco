@@ -1,7 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Star, Calendar, Film, ChevronRight, ChevronLeft, Tv, Grid3X3, List, Clock, Menu } from "lucide-react"
+import {
+  Search,
+  Star,
+  Calendar,
+  Film,
+  ChevronRight,
+  ChevronLeft,
+  Tv,
+  Grid3X3,
+  List,
+  Clock,
+  Menu,
+  ArrowLeft,
+  Clapperboard,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -95,7 +109,7 @@ const contentTypeOptions = [
   { value: "tv", label: "TV Shows Only", icon: Tv, shortLabel: "TV Shows" },
 ]
 
-// Comprehensive genres including historical and international
+// Enhanced genres - remove the custom regional cinema section
 const genreOptions = [
   // Standard genres
   { id: 28, name: "Action" },
@@ -131,7 +145,18 @@ const genreOptions = [
   { id: 10770, name: "TV Movie" },
 ]
 
-export default function ContentRecommendationWebsite() {
+// Simple animated loading dots component
+function LoadingDots() {
+  return (
+    <span className="inline-block">
+      <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
+      <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
+      <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+    </span>
+  )
+}
+
+export default function CVRecommendationWebsite() {
   const [currentStep, setCurrentStep] = useState(0) // 0: welcome, 1: content type, 2: rating, 3: year, 4: genre, 5: results
   const [preferences, setPreferences] = useState<UserPreferences>({
     ratingRange: "",
@@ -147,6 +172,7 @@ export default function ContentRecommendationWebsite() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("popularity")
   const [isLoading, setIsLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [showMoreLoading, setShowMoreLoading] = useState(false)
@@ -158,7 +184,7 @@ export default function ContentRecommendationWebsite() {
   // Fetch initial data
   useEffect(() => {
     const fetchInitialData = async () => {
-      setIsLoading(true)
+      setInitialLoading(true)
       try {
         const [movieGenresResponse, tvGenresResponse, trendingResponse] = await Promise.all([
           tmdbApi.getMovieGenres(),
@@ -185,14 +211,14 @@ export default function ContentRecommendationWebsite() {
       } catch (error) {
         console.error("Error fetching initial data:", error)
       } finally {
-        setIsLoading(false)
+        setInitialLoading(false)
       }
     }
 
     fetchInitialData()
   }, [])
 
-  // Filter content based on preferences
+  // Filter content based on preferences with Bollywood/Hollywood support
   useEffect(() => {
     const fetchFilteredContent = async () => {
       if (currentStep !== 5) return
@@ -202,6 +228,8 @@ export default function ContentRecommendationWebsite() {
 
       try {
         let allContent: TMDBContent[] = []
+        let movieResults: TMDBContent[] = []
+        let tvResults: TMDBContent[] = []
 
         // Handle search query
         if (searchQuery.trim()) {
@@ -246,68 +274,40 @@ export default function ContentRecommendationWebsite() {
             tvParams["first_air_date.lte"] = "2025-12-31"
           }
 
-          // Apply sorting with historical consideration
-          switch (sortBy) {
-            case "vote_average":
-              movieParams.sort_by = "vote_average.desc"
-              tvParams.sort_by = "vote_average.desc"
-              break
-            case "release_date":
-              movieParams.sort_by = "release_date.desc"
-              tvParams.sort_by = "first_air_date.desc"
-              break
-            case "release_date_asc":
-              movieParams.sort_by = "release_date.asc"
-              tvParams.sort_by = "first_air_date.asc"
-              break
-            case "title":
-              movieParams.sort_by = "original_title.asc"
-              tvParams.sort_by = "name.asc"
-              break
-            default:
-              movieParams.sort_by = "popularity.desc"
-              tvParams.sort_by = "popularity.desc"
-          }
-
-          // Fetch content based on type preference
-          let movieResults: TMDBContent[] = []
-          let tvResults: TMDBContent[] = []
-
-          if (preferences.contentType === "all" || preferences.contentType === "movie") {
-            if (preferences.selectedGenres.length > 0) {
-              // Fetch movies for each genre separately to get OR logic
-              for (const genreId of preferences.selectedGenres) {
-                for (let page = 1; page <= 3; page++) {
-                  try {
-                    const response = await tmdbApi.discoverMovies({
-                      ...movieParams,
-                      with_genres: genreId.toString(),
-                      page,
-                    })
-                    const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
-                    movieResults = [...movieResults, ...movies]
-                  } catch (error) {
-                    console.error(`Error fetching movies for genre ${genreId}:`, error)
-                  }
-                }
-              }
-            } else {
-              // No genre filter, fetch comprehensive movie collection
-              for (let page = 1; page <= 5; page++) {
+          // Remove the Bollywood/Hollywood specific filtering and use regular genre filtering
+          if (preferences.selectedGenres.length > 0) {
+            // Fetch movies for each genre separately to get OR logic
+            for (const genreId of preferences.selectedGenres) {
+              for (let page = 1; page <= 3; page++) {
                 try {
-                  const response = await tmdbApi.discoverMovies({ ...movieParams, page })
+                  const response = await tmdbApi.discoverMovies({
+                    ...movieParams,
+                    with_genres: genreId.toString(),
+                    page,
+                  })
                   const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
                   movieResults = [...movieResults, ...movies]
                 } catch (error) {
-                  console.error(`Error fetching movies page ${page}:`, error)
+                  console.error(`Error fetching movies for genre ${genreId}:`, error)
                 }
+              }
+            }
+          } else {
+            // No genre filter, fetch comprehensive movie collection
+            for (let page = 1; page <= 5; page++) {
+              try {
+                const response = await tmdbApi.discoverMovies({ ...movieParams, page })
+                const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
+                movieResults = [...movieResults, ...movies]
+              } catch (error) {
+                console.error(`Error fetching movies page ${page}:`, error)
               }
             }
           }
 
           if (preferences.contentType === "all" || preferences.contentType === "tv") {
+            // Handle TV shows with similar logic
             if (preferences.selectedGenres.length > 0) {
-              // Fetch TV shows for each genre separately to get OR logic
               for (const genreId of preferences.selectedGenres) {
                 for (let page = 1; page <= 3; page++) {
                   try {
@@ -356,9 +356,7 @@ export default function ContentRecommendationWebsite() {
 
               for (let page = 1; page <= 2; page++) {
                 const classicResponse = await tmdbApi.discoverMovies({ ...classicMovieParams, page })
-                const classicMovies = classicResponse.results.map((item) =>
-                  normalizeContent({ ...item, media_type: "movie" as const })
-                )
+                const classicMovies = classicResponse.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
                 allContent = [...allContent, ...classicMovies]
               }
             } catch (error) {
@@ -480,6 +478,23 @@ export default function ContentRecommendationWebsite() {
     return (currentStep / 5) * 100
   }
 
+  // Navigate to specific step when clicking on preference badges
+  const handlePreferenceBadgeClick = (step: number) => {
+    setCurrentStep(step)
+  }
+
+  // Show loading overlay during initial load
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 border-solid" />
+          <span className="text-lg font-semibold text-gray-700">Loading...</span>
+        </div>
+      </div>
+    )
+  }
+
   // Welcome Screen
   if (currentStep === 0) {
     return (
@@ -488,14 +503,14 @@ export default function ContentRecommendationWebsite() {
           <Card className="border-0 shadow-2xl bg-white overflow-hidden">
             <CardHeader className="text-center space-y-6 sm:space-y-8 py-12 sm:py-16 px-4 sm:px-8">
               <div className="flex justify-center">
-                <div className="p-4 sm:p-6 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-lg">
-                  <Film className="h-8 w-8 sm:h-12 sm:w-12 text-white" />
+                <div className="p-4 sm:p-6 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-lg animate-float">
+                  <Clapperboard className="h-8 w-8 sm:h-12 sm:w-12 text-white" />
                 </div>
               </div>
 
               <div className="space-y-3 sm:space-y-4">
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight">
-                  ContentFinder
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  CVRecommendation
                 </h1>
                 <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed px-4">
                   Discover the complete history of cinema and television. From the first films of the 1890s to the
@@ -504,25 +519,25 @@ export default function ContentRecommendationWebsite() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 pt-6 sm:pt-8 px-4">
-                <div className="text-center space-y-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <div className="p-3 sm:p-4 bg-blue-50 rounded-xl inline-block">
-                    <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 hover:shadow-lg transition-all duration-300">
+                  <div className="p-3 sm:p-4 bg-blue-500 rounded-xl inline-block animate-pulse-glow">
+                    <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                   </div>
                   <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Complete History</h3>
                   <p className="text-gray-600 text-xs sm:text-sm">From 1890s silent films to 2025 releases</p>
                 </div>
 
-                <div className="text-center space-y-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <div className="p-3 sm:p-4 bg-green-50 rounded-xl inline-block">
-                    <Star className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100 border border-green-200 hover:shadow-lg transition-all duration-300">
+                  <div className="p-3 sm:p-4 bg-green-500 rounded-xl inline-block animate-pulse-glow">
+                    <Star className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                   </div>
                   <h3 className="font-semibold text-gray-900 text-sm sm:text-base">All Ratings</h3>
                   <p className="text-gray-600 text-xs sm:text-sm">From masterpieces to hidden gems</p>
                 </div>
 
-                <div className="text-center space-y-3 p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <div className="p-3 sm:p-4 bg-purple-50 rounded-xl inline-block">
-                    <Tv className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600" />
+                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 hover:shadow-lg transition-all duration-300">
+                  <div className="p-3 sm:p-4 bg-purple-500 rounded-xl inline-block animate-pulse-glow">
+                    <Tv className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                   </div>
                   <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Movies & Series</h3>
                   <p className="text-gray-600 text-xs sm:text-sm">Complete entertainment library</p>
@@ -533,9 +548,9 @@ export default function ContentRecommendationWebsite() {
                 <Button
                   onClick={() => setCurrentStep(1)}
                   size="lg"
-                  className="w-full sm:w-auto px-8 sm:px-12 py-3 sm:py-4 text-base sm:text-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full sm:w-auto px-8 sm:px-12 py-3 sm:py-4 text-base sm:text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 animate-gradient"
                 >
-                  Explore Cinema History
+                  Explore Global Cinema
                   <ChevronRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </div>
@@ -557,12 +572,12 @@ export default function ContentRecommendationWebsite() {
                 <Button
                   variant="ghost"
                   onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                  className="flex items-center gap-2 text-sm sm:text-base"
+                  className="flex items-center gap-2 text-sm sm:text-base hover:bg-gray-100"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Back
                 </Button>
-                <span className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                <span className="text-xs sm:text-sm text-gray-500 bg-gradient-to-r from-blue-100 to-purple-100 px-3 py-1 rounded-full">
                   Step {currentStep} of 4
                 </span>
               </div>
@@ -572,7 +587,7 @@ export default function ContentRecommendationWebsite() {
               <div className="text-center space-y-2">
                 {currentStep === 1 && (
                   <>
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                       What would you like to explore?
                     </h2>
                     <p className="text-gray-600 text-sm sm:text-base">Choose your preferred content type</p>
@@ -580,19 +595,25 @@ export default function ContentRecommendationWebsite() {
                 )}
                 {currentStep === 2 && (
                   <>
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Select Quality Level</h2>
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      Select Quality Level
+                    </h2>
                     <p className="text-gray-600 text-sm sm:text-base">Choose your preferred rating range</p>
                   </>
                 )}
                 {currentStep === 3 && (
                   <>
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Choose Time Period</h2>
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      Choose Time Period
+                    </h2>
                     <p className="text-gray-600 text-sm sm:text-base">Select from complete cinema history</p>
                   </>
                 )}
                 {currentStep === 4 && (
                   <>
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Select Genres</h2>
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      Select Genres
+                    </h2>
                     <p className="text-gray-600 text-sm sm:text-base">Choose your favorite genres (select multiple)</p>
                   </>
                 )}
@@ -605,9 +626,9 @@ export default function ContentRecommendationWebsite() {
                   {contentTypeOptions.map((option) => (
                     <Card
                       key={option.value}
-                      className={`cursor-pointer transition-all duration-200 hover:shadow-lg border-2 ${
+                      className={`cursor-pointer transition-all duration-300 hover:shadow-xl border-2 ${
                         preferences.contentType === option.value
-                          ? "border-blue-500 bg-blue-50 shadow-lg"
+                          ? "border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 shadow-lg"
                           : "border-gray-200 hover:border-gray-300 hover:shadow-md"
                       }`}
                       onClick={() => handleContentTypeSelect(option.value as any)}
@@ -626,9 +647,9 @@ export default function ContentRecommendationWebsite() {
                   {ratingOptions.map((option) => (
                     <Card
                       key={option.value}
-                      className={`cursor-pointer transition-all duration-200 hover:shadow-lg border-2 ${
+                      className={`cursor-pointer transition-all duration-300 hover:shadow-xl border-2 ${
                         preferences.ratingRange === option.value
-                          ? "border-blue-500 bg-blue-50 shadow-lg"
+                          ? "border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 shadow-lg"
                           : "border-gray-200 hover:border-gray-300 hover:shadow-md"
                       }`}
                       onClick={() => handleRatingSelect(option.value)}
@@ -655,9 +676,9 @@ export default function ContentRecommendationWebsite() {
                   {yearOptions.map((option) => (
                     <Card
                       key={option.value}
-                      className={`cursor-pointer transition-all duration-200 hover:shadow-lg border-2 ${
+                      className={`cursor-pointer transition-all duration-300 hover:shadow-xl border-2 ${
                         preferences.yearRange === option.value
-                          ? "border-blue-500 bg-blue-50 shadow-lg"
+                          ? "border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 shadow-lg"
                           : "border-gray-200 hover:border-gray-300 hover:shadow-md"
                       }`}
                       onClick={() => handleYearSelect(option.value)}
@@ -677,9 +698,9 @@ export default function ContentRecommendationWebsite() {
                     {genreOptions.map((genre) => (
                       <Card
                         key={genre.id}
-                        className={`cursor-pointer transition-all duration-200 border ${
+                        className={`cursor-pointer transition-all duration-300 border ${
                           preferences.selectedGenres.includes(genre.id)
-                            ? "border-blue-500 bg-blue-50 shadow-md"
+                            ? "border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 shadow-md"
                             : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
                         }`}
                         onClick={() => handleGenreToggle(genre.id)}
@@ -701,7 +722,7 @@ export default function ContentRecommendationWebsite() {
                         {preferences.selectedGenres.slice(0, 6).map((genreId) => {
                           const genre = genreOptions.find((g) => g.id === genreId)
                           return genre ? (
-                            <Badge key={genreId} variant="secondary" className="text-xs">
+                            <Badge key={genreId} variant="secondary" className="text-xs bg-blue-100 text-blue-800">
                               {genre.name}
                             </Badge>
                           ) : null
@@ -723,7 +744,7 @@ export default function ContentRecommendationWebsite() {
                       onClick={handleFinishQuestionnaire}
                       size="lg"
                       disabled={preferences.selectedGenres.length === 0}
-                      className="w-full sm:w-auto px-8 sm:px-12 py-3 sm:py-4 text-base sm:text-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                      className="w-full sm:w-auto px-8 sm:px-12 py-3 sm:py-4 text-base sm:text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                     >
                       Discover Content
                       <ChevronRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
@@ -745,14 +766,19 @@ export default function ContentRecommendationWebsite() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            {/* Logo and Title */}
+            {/* Logo and Title with Back Button */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-blue-600 rounded-lg">
-                <Film className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              <Button variant="ghost" size="sm" onClick={() => setCurrentStep(4)} className="p-2 hover:bg-gray-100">
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
+              <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
+                <Clapperboard className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900">ContentFinder</h1>
-                <p className="text-xs text-gray-500 hidden sm:block">Cinema History Explorer</p>
+                <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  CVRecommendation
+                </h1>
+                <p className="text-xs text-gray-500 hidden sm:block">Global Cinema Explorer</p>
               </div>
             </div>
 
@@ -808,7 +834,7 @@ export default function ContentRecommendationWebsite() {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                         <Input
-                          placeholder="Search content..."
+                          placeholder="Search movies and TV shows..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="pl-10"
@@ -850,7 +876,7 @@ export default function ContentRecommendationWebsite() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search movies and TV shows..."
+                placeholder="Search all movies and TV shows..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
@@ -862,19 +888,27 @@ export default function ContentRecommendationWebsite() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Enhanced Mobile-Responsive Preferences Summary */}
+        {/* Enhanced Mobile-Responsive Preferences Summary with Clickable Badges */}
         <Card className="mb-6 sm:mb-8 bg-white border-gray-200 shadow-sm">
           <CardContent className="p-4 sm:p-6">
             <div className="space-y-3">
               <span className="font-semibold text-gray-900 text-sm sm:text-base">Your Selection:</span>
 
               <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50 text-xs sm:text-sm">
+                <Badge
+                  variant="outline"
+                  className="border-blue-200 text-blue-700 bg-blue-50 text-xs sm:text-sm cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => handlePreferenceBadgeClick(1)}
+                >
                   {contentTypeOptions.find((opt) => opt.value === preferences.contentType)?.shortLabel}
                 </Badge>
 
                 {preferences.ratingRange && (
-                  <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50 text-xs sm:text-sm">
+                  <Badge
+                    variant="outline"
+                    className="border-green-200 text-green-700 bg-green-50 text-xs sm:text-sm cursor-pointer hover:bg-green-100 transition-colors"
+                    onClick={() => handlePreferenceBadgeClick(2)}
+                  >
                     {ratingOptions.find((opt) => opt.value === preferences.ratingRange)?.label}
                   </Badge>
                 )}
@@ -882,7 +916,8 @@ export default function ContentRecommendationWebsite() {
                 {preferences.yearRange && (
                   <Badge
                     variant="outline"
-                    className="border-purple-200 text-purple-700 bg-purple-50 text-xs sm:text-sm"
+                    className="border-purple-200 text-purple-700 bg-purple-50 text-xs sm:text-sm cursor-pointer hover:bg-purple-100 transition-colors"
+                    onClick={() => handlePreferenceBadgeClick(3)}
                   >
                     {yearOptions.find((opt) => opt.value === preferences.yearRange)?.shortLabel}
                   </Badge>
@@ -896,14 +931,19 @@ export default function ContentRecommendationWebsite() {
                         <Badge
                           key={genreId}
                           variant="outline"
-                          className="border-gray-300 text-gray-700 text-xs sm:text-sm"
+                          className="text-xs sm:text-sm cursor-pointer transition-colors border-gray-300 text-gray-700 hover:bg-gray-100"
+                          onClick={() => handlePreferenceBadgeClick(4)}
                         >
                           {genre.name}
                         </Badge>
                       ) : null
                     })}
                     {preferences.selectedGenres.length > 2 && (
-                      <Badge variant="outline" className="border-gray-300 text-gray-700 text-xs sm:text-sm">
+                      <Badge
+                        variant="outline"
+                        className="border-gray-300 text-gray-700 text-xs sm:text-sm cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handlePreferenceBadgeClick(4)}
+                      >
                         +{preferences.selectedGenres.length - 2} more
                       </Badge>
                     )}
@@ -921,7 +961,14 @@ export default function ContentRecommendationWebsite() {
               {searchQuery ? `Search Results for "${searchQuery}"` : "Discovered Content"}
             </h2>
             <p className="text-gray-600 mt-1 text-sm sm:text-base">
-              Showing {displayedContent.length} of {filteredContent.length} results
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <LoadingDots />
+                  Loading results...
+                </span>
+              ) : (
+                `Showing ${displayedContent.length} of ${filteredContent.length} results`
+              )}
             </p>
           </div>
 
@@ -947,15 +994,16 @@ export default function ContentRecommendationWebsite() {
           </div>
         </div>
 
-        {/* Enhanced Mobile-Responsive Content Grid */}
+        {/* Enhanced Mobile-Responsive Content Grid with Professional Loading Animation */}
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6">
-            {Array.from({ length: 20 }).map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <div className="aspect-[2/3] bg-gray-200 animate-pulse" />
-                <CardContent className="p-3 sm:p-4">
-                  <div className="h-3 sm:h-4 bg-gray-200 rounded animate-pulse mb-2" />
-                  <div className="h-2 sm:h-3 bg-gray-200 rounded animate-pulse w-2/3" />
+          <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6 mb-8" : "space-y-3 sm:space-y-4 mb-8"}>
+            {Array.from({ length: viewMode === "grid" ? 12 : 6 }).map((_, idx) => (
+              <Card key={idx} className={`overflow-hidden animate-pulse bg-gray-100 ${viewMode === "list" ? "flex" : ""}`}>
+                <div className={viewMode === "grid" ? "aspect-[2/3] bg-gray-200" : "w-16 h-24 sm:w-24 sm:h-36 flex-shrink-0 bg-gray-200"} />
+                <CardContent className={`${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-2`}>
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  {viewMode === "list" && <div className="h-3 bg-gray-200 rounded w-full mt-2" />}
                 </CardContent>
               </Card>
             ))}
@@ -972,7 +1020,7 @@ export default function ContentRecommendationWebsite() {
               {displayedContent.map((item, index) => (
                 <Card
                   key={`${item.id}-${item.media_type}`}
-                  className={`overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group ${
+                  className={`overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group ${
                     viewMode === "list" ? "flex" : ""
                   }`}
                 >
@@ -1070,12 +1118,28 @@ export default function ContentRecommendationWebsite() {
                   onClick={handleLoadMore}
                   disabled={showMoreLoading}
                   size="lg"
-                  className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                 >
                   {showMoreLoading ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Loading More...
+                      <span className="animate-spin inline-block mr-2 align-middle">
+                        <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                          ></path>
+                        </svg>
+                      </span>
+                      <span className="ml-2">Loading More...</span>
                     </>
                   ) : (
                     <>
@@ -1095,14 +1159,14 @@ export default function ContentRecommendationWebsite() {
         {filteredContent.length === 0 && !isLoading && (
           <div className="text-center py-12 sm:py-16">
             <div className="space-y-4">
-              <Film className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto" />
+              <Clapperboard className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto" />
               <h3 className="text-lg sm:text-xl font-semibold text-gray-900">No content found</h3>
               <p className="text-gray-600 max-w-md mx-auto text-sm sm:text-base px-4">
                 We couldn't find any content matching your criteria. Try adjusting your preferences or search terms.
               </p>
               <Button
                 onClick={resetQuestionnaire}
-                className="mt-4 bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
+                className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-full sm:w-auto"
               >
                 Start New Search
               </Button>
