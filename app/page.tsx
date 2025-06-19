@@ -234,10 +234,10 @@ export default function ContentRecommendationWebsite() {
           // Apply comprehensive year filters
           if (preferences.yearRange && preferences.yearRange !== "all-time") {
             const [startYear, endYear] = preferences.yearRange.split("-")
-            movieParams["primary_release_date.gte"] = ${startYear}-01-01
-            movieParams["primary_release_date.lte"] = ${endYear}-12-31
-            tvParams["first_air_date.gte"] = ${startYear}-01-01
-            tvParams["first_air_date.lte"] = ${endYear}-12-31
+            movieParams["primary_release_date.gte"] = `${startYear}-01-01`
+            movieParams["primary_release_date.lte"] = `${endYear}-12-31`
+            tvParams["first_air_date.gte"] = `${startYear}-01-01`
+            tvParams["first_air_date.lte"] = `${endYear}-12-31`
           } else if (preferences.yearRange === "all-time") {
             // For all-time, set very broad date ranges to include everything
             movieParams["primary_release_date.gte"] = "1890-01-01"
@@ -287,7 +287,7 @@ export default function ContentRecommendationWebsite() {
                     const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
                     movieResults = [...movieResults, ...movies]
                   } catch (error) {
-                    console.error(Error fetching movies for genre ${genreId}:, error)
+                    console.error(`Error fetching movies for genre ${genreId}:`, error)
                   }
                 }
               }
@@ -299,7 +299,7 @@ export default function ContentRecommendationWebsite() {
                   const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
                   movieResults = [...movieResults, ...movies]
                 } catch (error) {
-                  console.error(Error fetching movies page ${page}:, error)
+                  console.error(`Error fetching movies page ${page}:`, error)
                 }
               }
             }
@@ -319,7 +319,7 @@ export default function ContentRecommendationWebsite() {
                     const tvShows = response.results.map((item) => normalizeContent({ ...item, media_type: "tv" as const }))
                     tvResults = [...tvResults, ...tvShows]
                   } catch (error) {
-                    console.error(Error fetching TV shows for genre ${genreId}:, error)
+                    console.error(`Error fetching TV shows for genre ${genreId}:`, error)
                   }
                 }
               }
@@ -331,7 +331,7 @@ export default function ContentRecommendationWebsite() {
                   const tvShows = response.results.map((item) => normalizeContent({ ...item, media_type: "tv" as const }))
                   tvResults = [...tvResults, ...tvShows]
                 } catch (error) {
-                  console.error(Error fetching TV shows page ${page}:, error)
+                  console.error(`Error fetching TV shows page ${page}:`, error)
                 }
               }
             }
@@ -918,7 +918,7 @@ export default function ContentRecommendationWebsite() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
-              {searchQuery ? Search Results for "${searchQuery}" : "Discovered Content"}
+              {searchQuery ? `Search Results for "${searchQuery}"` : "Discovered Content"}
             </h2>
             <p className="text-gray-600 mt-1 text-sm sm:text-base">
               Showing {displayedContent.length} of {filteredContent.length} results
@@ -971,7 +971,7 @@ export default function ContentRecommendationWebsite() {
             >
               {displayedContent.map((item, index) => (
                 <Card
-                  key={${item.id}-${item.media_type}}
+                  key={`${item.id}-${item.media_type}`}
                   className={`overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group ${
                     viewMode === "list" ? "flex" : ""
                   }`}
@@ -1011,7 +1011,7 @@ export default function ContentRecommendationWebsite() {
                   </div>
 
                   <CardContent
-                    className={${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-1 sm:space-y-2}
+                    className={`${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-1 sm:space-y-2`}
                   >
                     <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight text-xs sm:text-sm lg:text-base">
                       {item.display_title}
