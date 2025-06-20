@@ -33,6 +33,7 @@ interface UserPreferences {
   yearRange: string
   selectedGenres: number[]
   contentType: "all" | "movie" | "tv"
+  cinemaType: "indian" | "global"
 }
 
 // Professional rating options
@@ -109,6 +110,23 @@ const contentTypeOptions = [
   { value: "tv", label: "TV Shows Only", icon: Tv, shortLabel: "TV Shows" },
 ]
 
+const cinemaTypeOptions = [
+  {
+    value: "indian",
+    label: "Indian Cinema",
+    icon: Film,
+    shortLabel: "Indian",
+    description: "Bollywood, Tollywood, Kollywood & all Indian regional cinema",
+  },
+  {
+    value: "global",
+    label: "Global Cinema",
+    icon: Grid3X3,
+    shortLabel: "Global",
+    description: "Movies & TV shows from around the world including India",
+  },
+]
+
 // Enhanced genres - remove the custom regional cinema section
 const genreOptions = [
   // Standard genres
@@ -148,10 +166,10 @@ const genreOptions = [
 // Simple animated loading dots component
 function LoadingDots() {
   return (
-    <span className="inline-block">
-      <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
-      <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
-      <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+    <span className="inline-flex gap-0.5">
+      <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.2s]"></span>
+      <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.1s]"></span>
+      <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></span>
     </span>
   )
 }
@@ -163,6 +181,7 @@ export default function CVRecommendationWebsite() {
     yearRange: "",
     selectedGenres: [],
     contentType: "all",
+    cinemaType: "global",
   })
 
   const [genres, setGenres] = useState<TMDBGenre[]>([])
@@ -221,7 +240,7 @@ export default function CVRecommendationWebsite() {
   // Filter content based on preferences with Bollywood/Hollywood support
   useEffect(() => {
     const fetchFilteredContent = async () => {
-      if (currentStep !== 5) return
+      if (currentStep !== 6) return
 
       setIsLoading(true)
       setCurrentPage(1)
@@ -248,6 +267,14 @@ export default function CVRecommendationWebsite() {
           const movieParams: any = { page: 1, sort_by: "popularity.desc" }
           const tvParams: any = { page: 1, sort_by: "popularity.desc" }
 
+          // Apply cinema type filtering
+          if (preferences.cinemaType === "indian") {
+            // Indian cinema includes Hindi, Tamil, Telugu, Malayalam, Kannada, Bengali, Marathi, Punjabi
+            movieParams.with_original_language = "hi|ta|te|ml|kn|bn|mr|pa"
+            tvParams.with_original_language = "hi|ta|te|ml|kn|bn|mr|pa"
+          }
+          // For global cinema, no language restriction is applied
+
           // Apply rating filters
           if (preferences.ratingRange && preferences.ratingRange !== "all-ratings") {
             const ratingOption = ratingOptions.find((opt) => opt.value === preferences.ratingRange)
@@ -267,46 +294,68 @@ export default function CVRecommendationWebsite() {
             tvParams["first_air_date.gte"] = `${startYear}-01-01`
             tvParams["first_air_date.lte"] = `${endYear}-12-31`
           } else if (preferences.yearRange === "all-time") {
-            // For all-time, set very broad date ranges to include everything
             movieParams["primary_release_date.gte"] = "1890-01-01"
             movieParams["primary_release_date.lte"] = "2025-12-31"
-            tvParams["first_air_date.gte"] = "1940-01-01" // TV started later
+            tvParams["first_air_date.gte"] = "1940-01-01"
             tvParams["first_air_date.lte"] = "2025-12-31"
           }
 
-          // Remove the Bollywood/Hollywood specific filtering and use regular genre filtering
-          if (preferences.selectedGenres.length > 0) {
-            // Fetch movies for each genre separately to get OR logic
-            for (const genreId of preferences.selectedGenres) {
-              for (let page = 1; page <= 3; page++) {
+          // Apply sorting
+          switch (sortBy) {
+            case "vote_average":
+              movieParams.sort_by = "vote_average.desc"
+              tvParams.sort_by = "vote_average.desc"
+              break
+            case "release_date":
+              movieParams.sort_by = "release_date.desc"
+              tvParams.sort_by = "first_air_date.desc"
+              break
+            case "release_date_asc":
+              movieParams.sort_by = "release_date.asc"
+              tvParams.sort_by = "first_air_date.asc"
+              break
+            case "title":
+              movieParams.sort_by = "original_title.asc"
+              tvParams.sort_by = "name.asc"
+              break
+            default:
+              movieParams.sort_by = "popularity.desc"
+              tvParams.sort_by = "popularity.desc"
+          }
+
+          // Fetch movies
+          if (preferences.contentType === "all" || preferences.contentType === "movie") {
+            if (preferences.selectedGenres.length > 0) {
+              for (const genreId of preferences.selectedGenres) {
+                for (let page = 1; page <= 3; page++) {
+                  try {
+                    const response = await tmdbApi.discoverMovies({
+                      ...movieParams,
+                      with_genres: genreId.toString(),
+                      page,
+                    })
+                    const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
+                    movieResults = [...movieResults, ...movies]
+                  } catch (error) {
+                    console.error(`Error fetching movies for genre ${genreId}:`, error)
+                  }
+                }
+              }
+            } else {
+              for (let page = 1; page <= 5; page++) {
                 try {
-                  const response = await tmdbApi.discoverMovies({
-                    ...movieParams,
-                    with_genres: genreId.toString(),
-                    page,
-                  })
+                  const response = await tmdbApi.discoverMovies({ ...movieParams, page })
                   const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
                   movieResults = [...movieResults, ...movies]
                 } catch (error) {
-                  console.error(`Error fetching movies for genre ${genreId}:`, error)
+                  console.error(`Error fetching movies page ${page}:`, error)
                 }
-              }
-            }
-          } else {
-            // No genre filter, fetch comprehensive movie collection
-            for (let page = 1; page <= 5; page++) {
-              try {
-                const response = await tmdbApi.discoverMovies({ ...movieParams, page })
-                const movies = response.results.map((item) => normalizeContent({ ...item, media_type: "movie" as const }))
-                movieResults = [...movieResults, ...movies]
-              } catch (error) {
-                console.error(`Error fetching movies page ${page}:`, error)
               }
             }
           }
 
+          // Fetch TV shows
           if (preferences.contentType === "all" || preferences.contentType === "tv") {
-            // Handle TV shows with similar logic
             if (preferences.selectedGenres.length > 0) {
               for (const genreId of preferences.selectedGenres) {
                 for (let page = 1; page <= 3; page++) {
@@ -324,7 +373,6 @@ export default function CVRecommendationWebsite() {
                 }
               }
             } else {
-              // No genre filter, fetch comprehensive TV collection
               for (let page = 1; page <= 5; page++) {
                 try {
                   const response = await tmdbApi.discoverTVShows({ ...tvParams, page })
@@ -346,10 +394,9 @@ export default function CVRecommendationWebsite() {
             preferences.yearRange?.includes("1920")
           ) {
             try {
-              // Fetch some classic movies specifically
               const classicMovieParams = {
                 ...movieParams,
-                sort_by: "vote_count.desc", // Get well-known classics
+                sort_by: "vote_count.desc",
                 "primary_release_date.lte": "1970-12-31",
                 "vote_count.gte": 100,
               }
@@ -365,7 +412,21 @@ export default function CVRecommendationWebsite() {
           }
         }
 
-        // Normalize and add images
+        // Filter by cinema type if searching
+        if (searchQuery.trim() && preferences.cinemaType === "indian") {
+          // Filter search results to only include Indian content
+          const indianLanguages = ["hi", "ta", "te", "ml", "kn", "bn", "mr", "pa"]
+          allContent = allContent.filter(
+            (item) =>
+              indianLanguages.includes(item.original_language) ||
+              (typeof item.display_title === "string" &&
+                item.display_title.match(
+                  /[\u0900-\u097F]|[\u0980-\u09FF]|[\u0A00-\u0A7F]|[\u0A80-\u0AFF]|[\u0B00-\u0B7F]|[\u0B80-\u0BFF]|[\u0C00-\u0C7F]|[\u0C80-\u0CFF]|[\u0D00-\u0D7F]/,
+                )),
+          )
+        }
+
+        // Rest of the processing remains the same...
         const normalizedContent = allContent.map((item) => {
           const normalized = normalizeContent(item)
           return {
@@ -375,15 +436,13 @@ export default function CVRecommendationWebsite() {
           }
         })
 
-        // Remove duplicates and filter out invalid content
         const uniqueContent = normalizedContent.filter(
           (item, index, self) =>
             index === self.findIndex((c) => c.id === item.id && c.media_type === item.media_type) &&
             item.display_title &&
-            item.vote_average >= 0, // Include all ratings when "all-ratings" is selected
+            item.vote_average >= 0,
         )
 
-        // Sort the final results
         const sortedContent = uniqueContent.sort((a, b) => {
           switch (sortBy) {
             case "vote_average":
@@ -429,19 +488,24 @@ export default function CVRecommendationWebsite() {
     setShowMoreLoading(false)
   }
 
+  const handleCinemaTypeSelect = (type: "indian" | "global") => {
+    setPreferences((prev) => ({ ...prev, cinemaType: type }))
+    setCurrentStep(2)
+  }
+
   const handleContentTypeSelect = (type: "all" | "movie" | "tv") => {
     setPreferences((prev) => ({ ...prev, contentType: type }))
-    setCurrentStep(2)
+    setCurrentStep(3)
   }
 
   const handleRatingSelect = (rating: string) => {
     setPreferences((prev) => ({ ...prev, ratingRange: rating }))
-    setCurrentStep(3)
+    setCurrentStep(4)
   }
 
   const handleYearSelect = (year: string) => {
     setPreferences((prev) => ({ ...prev, yearRange: year }))
-    setCurrentStep(4)
+    setCurrentStep(5)
   }
 
   const handleGenreToggle = (genreId: number) => {
@@ -454,7 +518,7 @@ export default function CVRecommendationWebsite() {
   }
 
   const handleFinishQuestionnaire = () => {
-    setCurrentStep(5)
+    setCurrentStep(6)
   }
 
   const resetQuestionnaire = () => {
@@ -464,6 +528,7 @@ export default function CVRecommendationWebsite() {
       yearRange: "",
       selectedGenres: [],
       contentType: "all",
+      cinemaType: "global",
     })
     setSearchQuery("")
     setSortBy("popularity")
@@ -475,7 +540,7 @@ export default function CVRecommendationWebsite() {
   }
 
   const getProgressPercentage = () => {
-    return (currentStep / 5) * 100
+    return (currentStep / 6) * 100
   }
 
   // Navigate to specific step when clicking on preference badges
@@ -483,13 +548,13 @@ export default function CVRecommendationWebsite() {
     setCurrentStep(step)
   }
 
-  // Show loading overlay during initial load
+  // Simple loading animation for initial load
   if (initialLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 border-solid" />
-          <span className="text-lg font-semibold text-gray-700">Loading...</span>
+        <div className="flex flex-col items-center space-y-6">
+          <Clapperboard className="h-12 w-12 text-blue-600 animate-bounce" />
+          <span className="text-lg font-semibold text-gray-700">Loading Cinema History...</span>
         </div>
       </div>
     )
@@ -562,7 +627,7 @@ export default function CVRecommendationWebsite() {
   }
 
   // Questionnaire Steps
-  if (currentStep >= 1 && currentStep <= 4) {
+  if (currentStep >= 1 && currentStep <= 5) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4 sm:p-6">
         <div className="max-w-7xl w-full">
@@ -578,7 +643,7 @@ export default function CVRecommendationWebsite() {
                   Back
                 </Button>
                 <span className="text-xs sm:text-sm text-gray-500 bg-gradient-to-r from-blue-100 to-purple-100 px-3 py-1 rounded-full">
-                  Step {currentStep} of 4
+                  Step {currentStep} of 5
                 </span>
               </div>
 
@@ -588,12 +653,20 @@ export default function CVRecommendationWebsite() {
                 {currentStep === 1 && (
                   <>
                     <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      Choose Your Cinema Preference
+                    </h2>
+                    <p className="text-gray-600 text-sm sm:text-base">Select between Indian cinema or global content</p>
+                  </>
+                )}
+                {currentStep === 2 && (
+                  <>
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                       What would you like to explore?
                     </h2>
                     <p className="text-gray-600 text-sm sm:text-base">Choose your preferred content type</p>
                   </>
                 )}
-                {currentStep === 2 && (
+                {currentStep === 3 && (
                   <>
                     <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                       Select Quality Level
@@ -601,7 +674,7 @@ export default function CVRecommendationWebsite() {
                     <p className="text-gray-600 text-sm sm:text-base">Choose your preferred rating range</p>
                   </>
                 )}
-                {currentStep === 3 && (
+                {currentStep === 4 && (
                   <>
                     <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                       Choose Time Period
@@ -609,7 +682,7 @@ export default function CVRecommendationWebsite() {
                     <p className="text-gray-600 text-sm sm:text-base">Select from complete cinema history</p>
                   </>
                 )}
-                {currentStep === 4 && (
+                {currentStep === 5 && (
                   <>
                     <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                       Select Genres
@@ -622,6 +695,30 @@ export default function CVRecommendationWebsite() {
 
             <CardContent className="space-y-6 sm:space-y-8 p-4 sm:p-8 pb-8 sm:pb-12">
               {currentStep === 1 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto">
+                  {cinemaTypeOptions.map((option) => (
+                    <Card
+                      key={option.value}
+                      className={`cursor-pointer transition-all duration-300 hover:shadow-xl border-2 ${
+                        preferences.cinemaType === option.value
+                          ? "border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 shadow-lg"
+                          : "border-gray-200 hover:border-gray-300 hover:shadow-md"
+                      }`}
+                      onClick={() => handleCinemaTypeSelect(option.value as any)}
+                    >
+                      <CardContent className="p-6 sm:p-8 text-center space-y-4">
+                        <option.icon className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-gray-700" />
+                        <div className="space-y-2">
+                          <h3 className="font-bold text-lg sm:text-xl text-gray-900">{option.label}</h3>
+                          <p className="text-gray-600 text-sm sm:text-base">{option.description}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {currentStep === 2 && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                   {contentTypeOptions.map((option) => (
                     <Card
@@ -642,7 +739,7 @@ export default function CVRecommendationWebsite() {
                 </div>
               )}
 
-              {currentStep === 2 && (
+              {currentStep === 3 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {ratingOptions.map((option) => (
                     <Card
@@ -671,7 +768,7 @@ export default function CVRecommendationWebsite() {
                 </div>
               )}
 
-              {currentStep === 3 && (
+              {currentStep === 4 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {yearOptions.map((option) => (
                     <Card
@@ -692,7 +789,7 @@ export default function CVRecommendationWebsite() {
                 </div>
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 5 && (
                 <div className="space-y-6 sm:space-y-8">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                     {genreOptions.map((genre) => (
@@ -709,6 +806,7 @@ export default function CVRecommendationWebsite() {
                           <Checkbox
                             checked={preferences.selectedGenres.includes(genre.id)}
                             className="mx-auto"
+                            disabled
                           />
                           <p className="text-xs sm:text-sm font-medium text-gray-900 leading-tight">{genre.name}</p>
                         </CardContent>
@@ -760,31 +858,121 @@ export default function CVRecommendationWebsite() {
   }
 
   // Results Page
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Enhanced Mobile-Responsive Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo and Title with Back Button */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Button variant="ghost" size="sm" onClick={() => setCurrentStep(4)} className="p-2 hover:bg-gray-100">
-                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-              </Button>
-              <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
-                <Clapperboard className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+  if (currentStep === 6) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Enhanced Mobile-Responsive Header */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between">
+              {/* Logo and Title with Back Button */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setCurrentStep(5)} className="p-2 hover:bg-gray-100">
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
+                  <Clapperboard className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    CVRecommendation
+                  </h1>
+                  <p className="text-xs text-gray-500 hidden sm:block">Global Cinema Explorer</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  CVRecommendation
-                </h1>
-                <p className="text-xs text-gray-500 hidden sm:block">Global Cinema Explorer</p>
+
+              {/* Desktop Search and Controls */}
+              <div className="hidden lg:flex items-center gap-4 flex-1 max-w-2xl mx-8">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search all movies and TV shows..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-48 border-gray-300">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="popularity">Popularity</SelectItem>
+                    <SelectItem value="vote_average">Rating</SelectItem>
+                    <SelectItem value="release_date">Newest First</SelectItem>
+                    <SelectItem value="release_date_asc">Oldest First</SelectItem>
+                    <SelectItem value="title">Title A-Z</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  onClick={resetQuestionnaire}
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  New Search
+                </Button>
+              </div>
+
+              {/* Mobile Menu Button */}
+              <div className="lg:hidden">
+                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="sm" className="p-2">
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="right" className="w-80 p-0">
+                    <div className="p-6 space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold">Search & Filter</h2>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            placeholder="Search movies and TV shows..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+
+                        <Select value={sortBy} onValueChange={setSortBy}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sort by" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="popularity">Popularity</SelectItem>
+                            <SelectItem value="vote_average">Rating</SelectItem>
+                            <SelectItem value="release_date">Newest First</SelectItem>
+                            <SelectItem value="release_date_asc">Oldest First</SelectItem>
+                            <SelectItem value="title">Title A-Z</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Button
+                          onClick={() => {
+                            resetQuestionnaire()
+                            setIsMobileMenuOpen(false)
+                          }}
+                          variant="outline"
+                          className="w-full"
+                        >
+                          New Search
+                        </Button>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
               </div>
             </div>
 
-            {/* Desktop Search and Controls */}
-            <div className="hidden lg:flex items-center gap-4 flex-1 max-w-2xl mx-8">
-              <div className="relative flex-1">
+            {/* Mobile Search Bar */}
+            <div className="lg:hidden mt-3">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   placeholder="Search all movies and TV shows..."
@@ -793,387 +981,292 @@ export default function CVRecommendationWebsite() {
                   className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
-
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-48 border-gray-300">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="popularity">Popularity</SelectItem>
-                  <SelectItem value="vote_average">Rating</SelectItem>
-                  <SelectItem value="release_date">Newest First</SelectItem>
-                  <SelectItem value="release_date_asc">Oldest First</SelectItem>
-                  <SelectItem value="title">Title A-Z</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Button
-                onClick={resetQuestionnaire}
-                variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                New Search
-              </Button>
-            </div>
-
-            {/* Mobile Menu Button */}
-            <div className="lg:hidden">
-              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="p-2">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-80 p-0">
-                  <div className="p-6 space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold">Search & Filter</h2>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <Input
-                          placeholder="Search movies and TV shows..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
-
-                      <Select value={sortBy} onValueChange={setSortBy}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sort by" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="popularity">Popularity</SelectItem>
-                          <SelectItem value="vote_average">Rating</SelectItem>
-                          <SelectItem value="release_date">Newest First</SelectItem>
-                          <SelectItem value="release_date_asc">Oldest First</SelectItem>
-                          <SelectItem value="title">Title A-Z</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Button
-                        onClick={() => {
-                          resetQuestionnaire()
-                          setIsMobileMenuOpen(false)
-                        }}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        New Search
-                      </Button>
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
             </div>
           </div>
+        </header>
 
-          {/* Mobile Search Bar */}
-          <div className="lg:hidden mt-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search all movies and TV shows..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
-      </header>
+        {/* Main Content */}
+        <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+          {/* Enhanced Mobile-Responsive Preferences Summary with Clickable Badges */}
+          <Card className="mb-6 sm:mb-8 bg-white border-gray-200 shadow-sm">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-3">
+                <span className="font-semibold text-gray-900 text-sm sm:text-base">Your Selection:</span>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Enhanced Mobile-Responsive Preferences Summary with Clickable Badges */}
-        <Card className="mb-6 sm:mb-8 bg-white border-gray-200 shadow-sm">
-          <CardContent className="p-4 sm:p-6">
-            <div className="space-y-3">
-              <span className="font-semibold text-gray-900 text-sm sm:text-base">Your Selection:</span>
-
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="outline"
-                  className="border-blue-200 text-blue-700 bg-blue-50 text-xs sm:text-sm cursor-pointer hover:bg-blue-100 transition-colors"
-                  onClick={() => handlePreferenceBadgeClick(1)}
-                >
-                  {contentTypeOptions.find((opt) => opt.value === preferences.contentType)?.shortLabel}
-                </Badge>
-
-                {preferences.ratingRange && (
+                <div className="flex flex-wrap gap-2">
                   <Badge
                     variant="outline"
-                    className="border-green-200 text-green-700 bg-green-50 text-xs sm:text-sm cursor-pointer hover:bg-green-100 transition-colors"
+                    className="border-orange-200 text-orange-700 bg-orange-50 text-xs sm:text-sm cursor-pointer hover:bg-orange-100 transition-colors"
+                    onClick={() => handlePreferenceBadgeClick(1)}
+                  >
+                    {cinemaTypeOptions.find((opt) => opt.value === preferences.cinemaType)?.shortLabel}
+                  </Badge>
+
+                  <Badge
+                    variant="outline"
+                    className="border-blue-200 text-blue-700 bg-blue-50 text-xs sm:text-sm cursor-pointer hover:bg-blue-100 transition-colors"
                     onClick={() => handlePreferenceBadgeClick(2)}
                   >
-                    {ratingOptions.find((opt) => opt.value === preferences.ratingRange)?.label}
+                    {contentTypeOptions.find((opt) => opt.value === preferences.contentType)?.shortLabel}
                   </Badge>
-                )}
 
-                {preferences.yearRange && (
-                  <Badge
-                    variant="outline"
-                    className="border-purple-200 text-purple-700 bg-purple-50 text-xs sm:text-sm cursor-pointer hover:bg-purple-100 transition-colors"
-                    onClick={() => handlePreferenceBadgeClick(3)}
-                  >
-                    {yearOptions.find((opt) => opt.value === preferences.yearRange)?.shortLabel}
-                  </Badge>
-                )}
+                  {preferences.ratingRange && (
+                    <Badge
+                      variant="outline"
+                      className="border-green-200 text-green-700 bg-green-50 text-xs sm:text-sm cursor-pointer hover:bg-green-100 transition-colors"
+                      onClick={() => handlePreferenceBadgeClick(3)}
+                    >
+                      {ratingOptions.find((opt) => opt.value === preferences.ratingRange)?.label}
+                    </Badge>
+                  )}
 
-                {preferences.selectedGenres.length > 0 && (
-                  <>
-                    {preferences.selectedGenres.slice(0, 2).map((genreId) => {
-                      const genre = genreOptions.find((g) => g.id === genreId)
-                      return genre ? (
+                  {preferences.yearRange && (
+                    <Badge
+                      variant="outline"
+                      className="border-purple-200 text-purple-700 bg-purple-50 text-xs sm:text-sm cursor-pointer hover:bg-purple-100 transition-colors"
+                      onClick={() => handlePreferenceBadgeClick(4)}
+                    >
+                      {yearOptions.find((opt) => opt.value === preferences.yearRange)?.shortLabel}
+                    </Badge>
+                  )}
+
+                  {preferences.selectedGenres.length > 0 && (
+                    <>
+                      {preferences.selectedGenres.slice(0, 2).map((genreId) => {
+                        const genre = genreOptions.find((g) => g.id === genreId)
+                        return genre ? (
+                          <Badge
+                            key={genreId}
+                            variant="outline"
+                            className="text-xs sm:text-sm cursor-pointer transition-colors border-gray-300 text-gray-700 hover:bg-gray-100"
+                            onClick={() => handlePreferenceBadgeClick(5)}
+                          >
+                            {genre.name}
+                          </Badge>
+                        ) : null
+                      })}
+                      {preferences.selectedGenres.length > 2 && (
                         <Badge
-                          key={genreId}
                           variant="outline"
-                          className="text-xs sm:text-sm cursor-pointer transition-colors border-gray-300 text-gray-700 hover:bg-gray-100"
-                          onClick={() => handlePreferenceBadgeClick(4)}
+                          className="border-gray-300 text-gray-700 text-xs sm:text-sm cursor-pointer hover:bg-gray-100 transition-colors"
+                          onClick={() => handlePreferenceBadgeClick(5)}
                         >
-                          {genre.name}
+                          +{preferences.selectedGenres.length - 2} more
                         </Badge>
-                      ) : null
-                    })}
-                    {preferences.selectedGenres.length > 2 && (
-                      <Badge
-                        variant="outline"
-                        className="border-gray-300 text-gray-700 text-xs sm:text-sm cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => handlePreferenceBadgeClick(4)}
-                      >
-                        +{preferences.selectedGenres.length - 2} more
-                      </Badge>
-                    )}
-                  </>
-                )}
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Enhanced Mobile-Responsive Results Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
+                {searchQuery ? `Search Results for "${searchQuery}"` : "Discovered Content"}
+              </h2>
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <LoadingDots />
+                    Loading results...
+                  </span>
+                ) : (
+                  `Showing ${displayedContent.length} of ${filteredContent.length} results`
+                )}
+              </p>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Enhanced Mobile-Responsive Results Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
-              {searchQuery ? `Search Results for "${searchQuery}"` : "Discovered Content"}
-            </h2>
-            <p className="text-gray-600 mt-1 text-sm sm:text-base">
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <LoadingDots />
-                  Loading results...
-                </span>
-              ) : (
-                `Showing ${displayedContent.length} of ${filteredContent.length} results`
-              )}
-            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === "grid" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                className="flex-1 sm:flex-none"
+              >
+                <Grid3X3 className="h-4 w-4 mr-2 sm:mr-0" />
+                <span className="sm:hidden">Grid</span>
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                className="flex-1 sm:flex-none"
+              >
+                <List className="h-4 w-4 mr-2 sm:mr-0" />
+                <span className="sm:hidden">List</span>
+              </Button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === "grid" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("grid")}
-              className="flex-1 sm:flex-none"
-            >
-              <Grid3X3 className="h-4 w-4 mr-2 sm:mr-0" />
-              <span className="sm:hidden">Grid</span>
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("list")}
-              className="flex-1 sm:flex-none"
-            >
-              <List className="h-4 w-4 mr-2 sm:mr-0" />
-              <span className="sm:hidden">List</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Enhanced Mobile-Responsive Content Grid with Professional Loading Animation */}
-        {isLoading ? (
-          <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6 mb-8" : "space-y-3 sm:space-y-4 mb-8"}>
-            {Array.from({ length: viewMode === "grid" ? 12 : 6 }).map((_, idx) => (
-              <Card key={idx} className={`overflow-hidden animate-pulse bg-gray-100 ${viewMode === "list" ? "flex" : ""}`}>
-                <div className={viewMode === "grid" ? "aspect-[2/3] bg-gray-200" : "w-16 h-24 sm:w-24 sm:h-36 flex-shrink-0 bg-gray-200"} />
-                <CardContent className={`${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-2`}>
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-                  <div className="h-3 bg-gray-200 rounded w-1/2" />
-                  {viewMode === "list" && <div className="h-3 bg-gray-200 rounded w-full mt-2" />}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <>
-            <div
-              className={
-                viewMode === "grid"
-                  ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6 mb-8"
-                  : "space-y-3 sm:space-y-4 mb-8"
-              }
-            >
-              {displayedContent.map((item, index) => (
-                <Card
-                  key={`${item.id}-${item.media_type}`}
-                  className={`overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group ${
-                    viewMode === "list" ? "flex" : ""
-                  }`}
-                >
-                  <div
-                    className={`relative ${
-                      viewMode === "grid" ? "aspect-[2/3]" : "w-16 h-24 sm:w-24 sm:h-36 flex-shrink-0"
+          {/* Enhanced Mobile-Responsive Content Grid with Professional Loading Animation */}
+          {isLoading ? (
+            <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6 mb-8" : "space-y-3 sm:space-y-4 mb-8"}>
+              {Array.from({ length: viewMode === "grid" ? 12 : 6 }).map((_, i) => (
+                <Card key={i} className={`overflow-hidden animate-pulse bg-gray-100 ${viewMode === "list" ? "flex" : ""}`}>
+                  <div className={viewMode === "grid" ? "aspect-[2/3] bg-gray-200" : "w-16 h-24 sm:w-24 sm:h-36 flex-shrink-0 bg-gray-200"} />
+                  <CardContent className={`${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-2`}>
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div
+                className={
+                  viewMode === "grid"
+                    ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6 mb-8"
+                    : "space-y-3 sm:space-y-4 mb-8"
+                }
+              >
+                {displayedContent.map((item, index) => (
+                  <Card
+                    key={`${item.id}-${item.media_type}`}
+                    className={`overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group ${
+                      viewMode === "list" ? "flex" : ""
                     }`}
                   >
-                    <img
-                      src={item.poster_path || "/placeholder.svg"}
-                      alt={item.display_title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
+                    <div
+                      className={`relative ${
+                        viewMode === "grid" ? "aspect-[2/3]" : "w-16 h-24 sm:w-24 sm:h-36 flex-shrink-0"
+                      }`}
+                    >
+                      <img
+                        src={item.poster_path || "/placeholder.svg"}
+                        alt={item.display_title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
 
-                    {/* Content type badge */}
-                    <div className="absolute top-1 sm:top-2 right-1 sm:right-2">
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${
-                          item.media_type === "movie" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {item.media_type === "movie" ? "Movie" : "TV"}
-                      </Badge>
-                    </div>
+                      {/* Content type badge */}
+                      <div className="absolute top-1 sm:top-2 right-1 sm:right-2">
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs ${
+                            item.media_type === "movie" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {item.media_type === "movie" ? "Movie" : "TV"}
+                        </Badge>
+                      </div>
 
-                    {/* Era badge for historical content */}
-                    {item.display_date &&
-                      new Date(item.display_date).getFullYear() < 1960 &&
-                      viewMode === "grid" &&
-                      index < 6 && (
-                        <div className="absolute top-1 sm:top-2 left-1 sm:left-2">
-                          <Badge className="bg-amber-500 text-white font-bold text-xs">Classic</Badge>
-                        </div>
-                      )}
-                  </div>
-
-                  <CardContent
-                    className={`${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-1 sm:space-y-2`}
-                  >
-                    <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight text-xs sm:text-sm lg:text-base">
-                      {item.display_title}
-                    </h3>
-
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3 w-3 sm:h-4 sm:w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-medium">{item.vote_average.toFixed(1)}</span>
-                        </div>
-                        {item.display_date && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
-                            <span className="text-gray-600">{new Date(item.display_date).getFullYear()}</span>
+                      {/* Era badge for historical content */}
+                      {item.display_date &&
+                        new Date(item.display_date).getFullYear() < 1960 &&
+                        viewMode === "grid" &&
+                        index < 6 && (
+                          <div className="absolute top-1 sm:top-2 left-1 sm:left-2">
+                            <Badge className="bg-amber-500 text-white font-bold text-xs">Classic</Badge>
                           </div>
                         )}
-                      </div>
                     </div>
 
-                    {viewMode === "grid" && (
-                      <div className="flex flex-wrap gap-1">
-                        {getGenreNames(item.genre_ids)
-                          .slice(0, 1)
-                          .map((genre) => (
-                            <Badge key={genre} variant="outline" className="text-xs">
-                              {genre}
-                            </Badge>
-                          ))}
-                      </div>
-                    )}
+                    <CardContent
+                      className={`${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-1 sm:space-y-2`}
+                    >
+                      <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight text-xs sm:text-sm lg:text-base">
+                        {item.display_title}
+                      </h3>
 
-                    {viewMode === "list" && (
-                      <>
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-3 w-3 sm:h-4 sm:w-4 fill-yellow-400 text-yellow-400" />
+                            <span className="font-medium">{item.vote_average.toFixed(1)}</span>
+                          </div>
+                          {item.display_date && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                              <span className="text-gray-600">{new Date(item.display_date).getFullYear()}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {viewMode === "grid" && (
                         <div className="flex flex-wrap gap-1">
                           {getGenreNames(item.genre_ids)
-                            .slice(0, 2)
+                            .slice(0, 1)
                             .map((genre) => (
                               <Badge key={genre} variant="outline" className="text-xs">
                                 {genre}
                               </Badge>
                             ))}
                         </div>
-                        <p className="text-xs sm:text-sm text-gray-600 line-clamp-2 hidden sm:block">{item.overview}</p>
+                      )}
+
+                      {viewMode === "list" && (
+                        <>
+                          <div className="flex flex-wrap gap-1">
+                            {getGenreNames(item.genre_ids)
+                              .slice(0, 2)
+                              .map((genre) => (
+                                <Badge key={genre} variant="outline" className="text-xs">
+                                  {genre}
+                                </Badge>
+                              ))}
+                          </div>
+                          <p className="text-xs sm:text-sm text-gray-600 line-clamp-2 hidden sm:block">
+                            {item.overview}
+                          </p>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Enhanced Mobile-Responsive Load More Button */}
+              {currentPage < totalPages && (
+                <div className="text-center">
+                  <Button
+                    onClick={handleLoadMore}
+                    disabled={showMoreLoading}
+                    size="lg"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  >
+                    {showMoreLoading ? (
+                      <>
+                        <LoadingDots />
+                        <span className="ml-2">Loading More...</span>
+                      </>
+                    ) : (
+                      <>
+                        Load More Results
+                        <ChevronRight className="ml-2 h-4 w-4" />
                       </>
                     )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </Button>
+                  <p className="text-gray-500 text-xs sm:text-sm mt-2">
+                    {displayedContent.length} of {filteredContent.length} results shown
+                  </p>
+                </div>
+              )}
+            </>
+          )}
 
-            {/* Enhanced Mobile-Responsive Load More Button */}
-            {currentPage < totalPages && (
-              <div className="text-center">
-                <Button
-                  onClick={handleLoadMore}
-                  disabled={showMoreLoading}
-                  size="lg"
-                  className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                >
-                  {showMoreLoading ? (
-                    <>
-                      <span className="animate-spin inline-block mr-2 align-middle">
-                        <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                          ></path>
-                        </svg>
-                      </span>
-                      <span className="ml-2">Loading More...</span>
-                    </>
-                  ) : (
-                    <>
-                      Load More Results
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-                <p className="text-gray-500 text-xs sm:text-sm mt-2">
-                  {displayedContent.length} of {filteredContent.length} results shown
+          {filteredContent.length === 0 && !isLoading && (
+            <div className="text-center py-12 sm:py-16">
+              <div className="space-y-4">
+                <Clapperboard className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto" />
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">No content found</h3>
+                <p className="text-gray-600 max-w-md mx-auto text-sm sm:text-base px-4">
+                  We couldn't find any content matching your criteria. Try adjusting your preferences or search terms.
                 </p>
+                <Button
+                  onClick={resetQuestionnaire}
+                  className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-full sm:w-auto"
+                >
+                  Start New Search
+                </Button>
               </div>
-            )}
-          </>
-        )}
-
-        {filteredContent.length === 0 && !isLoading && (
-          <div className="text-center py-12 sm:py-16">
-            <div className="space-y-4">
-              <Clapperboard className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto" />
-              <h3 className="text-lg sm:text-xl font-semibold text-gray-900">No content found</h3>
-              <p className="text-gray-600 max-w-md mx-auto text-sm sm:text-base px-4">
-                We couldn't find any content matching your criteria. Try adjusting your preferences or search terms.
-              </p>
-              <Button
-                onClick={resetQuestionnaire}
-                className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-full sm:w-auto"
-              >
-                Start New Search
-              </Button>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
-  )
+          )}
+        </main>
+      </div>
+    )
+  }
 }
