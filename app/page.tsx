@@ -24,7 +24,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-
 import { tmdbApi, getPosterUrl, getBackdropUrl, normalizeContent, type TMDBGenre, type TMDBContent } from "@/lib/tmdb"
 
 // Types

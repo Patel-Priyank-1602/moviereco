@@ -3,9 +3,11 @@ import type { Metadata } from "next"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "ContentFinder - Cinema History Explorer",
+  title: "CVRecommendation",
   description: "Discover the complete history of cinema and television from 1890s to 2025",
-  generator: "v0.dev",
+  icons: {
+    icon: "/cvrr.png",
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
