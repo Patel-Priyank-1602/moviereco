@@ -214,7 +214,7 @@ export const getBackdropUrl = (path: string | null): string => {
 
 // Helper function to normalize content
 export const normalizeContent = (item: TMDBMovie | TMDBTVShow | TMDBContent): TMDBContent => {
-  const isMovie = "title" in item || item.media_type === "movie"
+  const isMovie = "title" in item || item.media_type === "movie" as typeof item.media_type
 
   return {
     ...item,
