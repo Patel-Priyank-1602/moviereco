@@ -912,6 +912,15 @@ export default function CVRecommendationWebsite() {
                 >
                   New Search
                 </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  <a href="https://patel-priyank-1602.github.io/contactcvr/" rel="noopener noreferrer">
+                  Contact us
+                  </a>
+                </Button>
               </div>
 
               {/* Mobile Menu Button */}
@@ -954,13 +963,26 @@ export default function CVRecommendationWebsite() {
 
                         <Button
                           onClick={() => {
-                            resetQuestionnaire()
-                            setIsMobileMenuOpen(false)
+                          resetQuestionnaire()
+                          setIsMobileMenuOpen(false)
                           }}
                           variant="outline"
                           className="w-full"
                         >
                           New Search
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          className="w-full mt-2"
+                        >
+                          <a
+                          href="https://patel-priyank-1602.github.io/contactcvr/"
+                          rel="noopener noreferrer"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          >
+                          Contact Us
+                          </a>
                         </Button>
                       </div>
                     </div>
