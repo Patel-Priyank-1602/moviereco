@@ -128,6 +128,7 @@ const cinemaTypeOptions = [
 
 // Enhanced genres - remove the custom regional cinema section
 const genreOptions = [
+  // Standard genres
   { id: 28, name: "Action" },
   { id: 12, name: "Adventure" },
   { id: 16, name: "Animation" },
@@ -146,6 +147,8 @@ const genreOptions = [
   { id: 53, name: "Thriller" },
   { id: 10752, name: "War" },
   { id: 37, name: "Western" },
+
+  // TV specific genres
   { id: 10759, name: "Action & Adventure" },
   { id: 10762, name: "Kids" },
   { id: 10763, name: "News" },
@@ -154,6 +157,8 @@ const genreOptions = [
   { id: 10766, name: "Soap" },
   { id: 10767, name: "Talk" },
   { id: 10768, name: "War & Politics" },
+
+  // Additional comprehensive categories
   { id: 10770, name: "TV Movie" },
 ]
 
@@ -205,6 +210,7 @@ export default function CVRecommendationWebsite() {
           tmdbApi.getTrendingContent(),
         ])
 
+        // Combine and deduplicate genres
         const allGenres = [...movieGenresResponse.genres, ...tvGenresResponse.genres]
         const uniqueGenres = allGenres.filter(
           (genre, index, self) => index === self.findIndex((g) => g.id === genre.id),
@@ -243,6 +249,7 @@ export default function CVRecommendationWebsite() {
         let movieResults: TMDBContent[] = []
         let tvResults: TMDBContent[] = []
 
+        // Handle search query
         if (searchQuery.trim()) {
           if (preferences.contentType === "all") {
             const response = await tmdbApi.searchMulti(searchQuery, 1)
@@ -255,14 +262,19 @@ export default function CVRecommendationWebsite() {
             allContent = response.results.map((item) => normalizeContent({ ...item, media_type: "tv" as const }))
           }
         } else {
+          // Discover content based on preferences
           const movieParams: any = { page: 1, sort_by: "popularity.desc" }
           const tvParams: any = { page: 1, sort_by: "popularity.desc" }
 
+          // Apply cinema type filtering
           if (preferences.cinemaType === "indian") {
+            // Indian cinema includes Hindi, Tamil, Telugu, Malayalam, Kannada, Bengali, Marathi, Punjabi
             movieParams.with_original_language = "hi|ta|te|ml|kn|bn|mr|pa"
             tvParams.with_original_language = "hi|ta|te|ml|kn|bn|mr|pa"
           }
+          // For global cinema, no language restriction is applied
 
+          // Apply rating filters
           if (preferences.ratingRange && preferences.ratingRange !== "all-ratings") {
             const ratingOption = ratingOptions.find((opt) => opt.value === preferences.ratingRange)
             if (ratingOption) {
@@ -273,6 +285,7 @@ export default function CVRecommendationWebsite() {
             }
           }
 
+          // Apply comprehensive year filters
           if (preferences.yearRange && preferences.yearRange !== "all-time") {
             const [startYear, endYear] = preferences.yearRange.split("-")
             movieParams["primary_release_date.gte"] = `${startYear}-01-01`
@@ -286,6 +299,7 @@ export default function CVRecommendationWebsite() {
             tvParams["first_air_date.lte"] = "2025-12-31"
           }
 
+          // Apply sorting
           switch (sortBy) {
             case "vote_average":
               movieParams.sort_by = "vote_average.desc"
@@ -308,6 +322,7 @@ export default function CVRecommendationWebsite() {
               tvParams.sort_by = "popularity.desc"
           }
 
+          // Fetch movies
           if (preferences.contentType === "all" || preferences.contentType === "movie") {
             if (preferences.selectedGenres.length > 0) {
               for (const genreId of preferences.selectedGenres) {
@@ -338,6 +353,7 @@ export default function CVRecommendationWebsite() {
             }
           }
 
+          // Fetch TV shows
           if (preferences.contentType === "all" || preferences.contentType === "tv") {
             if (preferences.selectedGenres.length > 0) {
               for (const genreId of preferences.selectedGenres) {
@@ -370,6 +386,7 @@ export default function CVRecommendationWebsite() {
 
           allContent = [...movieResults, ...tvResults]
 
+          // For historical content, also fetch some classic/older content specifically
           if (
             preferences.yearRange === "all-time" ||
             preferences.yearRange?.includes("1890") ||
@@ -394,7 +411,9 @@ export default function CVRecommendationWebsite() {
           }
         }
 
+        // Filter by cinema type if searching
         if (searchQuery.trim() && preferences.cinemaType === "indian") {
+          // Filter search results to only include Indian content
           const indianLanguages = ["hi", "ta", "te", "ml", "kn", "bn", "mr", "pa"]
           allContent = allContent.filter(
             (item) =>
@@ -406,6 +425,7 @@ export default function CVRecommendationWebsite() {
           )
         }
 
+        // Rest of the processing remains the same...
         const normalizedContent = allContent.map((item) => {
           const normalized = normalizeContent(item)
           return {
@@ -522,6 +542,7 @@ export default function CVRecommendationWebsite() {
     return (currentStep / 6) * 100
   }
 
+  // Navigate to specific step when clicking on preference badges
   const handlePreferenceBadgeClick = (step: number) => {
     setCurrentStep(step)
   }
@@ -529,15 +550,10 @@ export default function CVRecommendationWebsite() {
   // Simple loading animation for initial load
   if (initialLoading) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat bg-gradient-to-br from-gray-50 to-gray-100"
-        style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('/bg.png')`,
-        }}
-      >
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="flex flex-col items-center space-y-6">
           <Clapperboard className="h-12 w-12 text-blue-600 animate-bounce" />
-          <span className="text-lg font-semibold text-white">Loading Cinema History...</span>
+          <span className="text-lg font-semibold text-gray-700">Loading Cinema History...</span>
         </div>
       </div>
     )
@@ -546,14 +562,9 @@ export default function CVRecommendationWebsite() {
   // Welcome Screen
   if (currentStep === 0) {
     return (
-      <div
-        className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4 sm:p-6 bg-gradient-to-br from-gray-50 to-gray-100"
-        style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('bg.png')`,
-        }}
-      >
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4 sm:p-6">
         <div className="max-w-5xl w-full">
-          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
+          <Card className="border-0 shadow-2xl bg-white overflow-hidden">
             <CardHeader className="text-center space-y-6 sm:space-y-8 py-12 sm:py-16 px-4 sm:px-8">
               <div className="flex justify-center">
                 <div className="p-4 sm:p-6 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-lg animate-float">
@@ -572,7 +583,7 @@ export default function CVRecommendationWebsite() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 pt-6 sm:pt-8 px-4">
-                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-blue-50/90 to-blue-100/90 border border-blue-200 hover:shadow-lg transition-all duration-300">
+                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 hover:shadow-lg transition-all duration-300">
                   <div className="p-3 sm:p-4 bg-blue-500 rounded-xl inline-block animate-pulse-glow">
                     <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                   </div>
@@ -580,7 +591,7 @@ export default function CVRecommendationWebsite() {
                   <p className="text-gray-600 text-xs sm:text-sm">From 1890s silent films to 2025 releases</p>
                 </div>
 
-                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-green-50/90 to-green-100/90 border border-green-200 hover:shadow-lg transition-all duration-300">
+                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100 border border-green-200 hover:shadow-lg transition-all duration-300">
                   <div className="p-3 sm:p-4 bg-green-500 rounded-xl inline-block animate-pulse-glow">
                     <Star className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                   </div>
@@ -588,7 +599,7 @@ export default function CVRecommendationWebsite() {
                   <p className="text-gray-600 text-xs sm:text-sm">From masterpieces to hidden gems</p>
                 </div>
 
-                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-purple-50/90 to-purple-100/90 border border-purple-200 hover:shadow-lg transition-all duration-300">
+                <div className="text-center space-y-3 p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 hover:shadow-lg transition-all duration-300">
                   <div className="p-3 sm:p-4 bg-purple-500 rounded-xl inline-block animate-pulse-glow">
                     <Tv className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                   </div>
@@ -617,14 +628,9 @@ export default function CVRecommendationWebsite() {
   // Questionnaire Steps
   if (currentStep >= 1 && currentStep <= 5) {
     return (
-      <div
-        className="min-h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center p-4 sm:p-6 bg-gradient-to-br from-gray-50 to-gray-100"
-        style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('bg.png')`,
-        }}
-      >
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4 sm:p-6">
         <div className="max-w-7xl w-full">
-          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
+          <Card className="border-0 shadow-2xl bg-white">
             <CardHeader className="space-y-4 sm:space-y-6 p-4 sm:p-8">
               <div className="flex items-center justify-between">
                 <Button
@@ -853,15 +859,12 @@ export default function CVRecommendationWebsite() {
   // Results Page
   if (currentStep === 6) {
     return (
-      <div
-        className="min-h-screen bg-cover bg-center bg-no-repeat bg-gradient-to-br from-gray-50 to-gray-100"
-        // style={{
-        //   backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('bg.png')`,
-        // }}
-      >
-        <header className="bg-white/95 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+      <div className="min-h-screen bg-gray-50">
+        {/* Enhanced Mobile-Responsive Header */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
           <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
+              {/* Logo and Title with Back Button */}
               <div className="flex items-center gap-2 sm:gap-3">
                 <Button variant="ghost" size="sm" onClick={() => setCurrentStep(5)} className="p-2 hover:bg-gray-100">
                   <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -877,6 +880,7 @@ export default function CVRecommendationWebsite() {
                 </div>
               </div>
 
+              {/* Desktop Search and Controls */}
               <div className="hidden lg:flex items-center gap-4 flex-1 max-w-2xl mx-8">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -914,11 +918,12 @@ export default function CVRecommendationWebsite() {
                   className="border-gray-300 text-gray-700 hover:bg-gray-50"
                 >
                   <a href="https://patel-priyank-1602.github.io/contactcvr/" rel="noopener noreferrer">
-                    Contact us
+                  Contact us
                   </a>
                 </Button>
               </div>
 
+              {/* Mobile Menu Button */}
               <div className="lg:hidden">
                 <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                   <SheetTrigger asChild>
@@ -958,8 +963,8 @@ export default function CVRecommendationWebsite() {
 
                         <Button
                           onClick={() => {
-                            resetQuestionnaire()
-                            setIsMobileMenuOpen(false)
+                          resetQuestionnaire()
+                          setIsMobileMenuOpen(false)
                           }}
                           variant="outline"
                           className="w-full"
@@ -972,11 +977,11 @@ export default function CVRecommendationWebsite() {
                           className="w-full mt-2"
                         >
                           <a
-                            href="https://patel-priyank-1602.github.io/contactcvr/"
-                            rel="noopener noreferrer"
-                            onClick={() => setIsMobileMenuOpen(false)}
+                          href="https://patel-priyank-1602.github.io/contactcvr/"
+                          rel="noopener noreferrer"
+                          onClick={() => setIsMobileMenuOpen(false)}
                           >
-                            Contact Us
+                          Contact Us
                           </a>
                         </Button>
                       </div>
@@ -986,6 +991,7 @@ export default function CVRecommendationWebsite() {
               </div>
             </div>
 
+            {/* Mobile Search Bar */}
             <div className="lg:hidden mt-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -1000,8 +1006,10 @@ export default function CVRecommendationWebsite() {
           </div>
         </header>
 
+        {/* Main Content */}
         <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <Card className="mb-6 sm:mb-8 bg-white/95 backdrop-blur-sm border-gray-200 shadow-sm">
+          {/* Enhanced Mobile-Responsive Preferences Summary with Clickable Badges */}
+          <Card className="mb-6 sm:mb-8 bg-white border-gray-200 shadow-sm">
             <CardContent className="p-4 sm:p-6">
               <div className="space-y-3">
                 <span className="font-semibold text-gray-900 text-sm sm:text-base">Your Selection:</span>
@@ -1074,6 +1082,7 @@ export default function CVRecommendationWebsite() {
             </CardContent>
           </Card>
 
+          {/* Enhanced Mobile-Responsive Results Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
@@ -1113,19 +1122,12 @@ export default function CVRecommendationWebsite() {
             </div>
           </div>
 
+          {/* Enhanced Mobile-Responsive Content Grid with Professional Loading Animation */}
           {isLoading ? (
-            <div
-              className={
-                viewMode === "grid"
-                  ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6 mb-8"
-                  : "space-y-3 sm:space-y-4 mb-8"
-              }
-            >
+            <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6 mb-8" : "space-y-3 sm:space-y-4 mb-8"}>
               {Array.from({ length: viewMode === "grid" ? 12 : 6 }).map((_, i) => (
                 <Card key={i} className={`overflow-hidden animate-pulse bg-gray-100 ${viewMode === "list" ? "flex" : ""}`}>
-                  <div
-                    className={viewMode === "grid" ? "aspect-[2/3] bg-gray-200" : "w-16 h-24 sm:w-24 sm:h-36 flex-shrink-0 bg-gray-200"}
-                  />
+                  <div className={viewMode === "grid" ? "aspect-[2/3] bg-gray-200" : "w-16 h-24 sm:w-24 sm:h-36 flex-shrink-0 bg-gray-200"} />
                   <CardContent className={`${viewMode === "grid" ? "p-2 sm:p-4" : "p-3 sm:p-4 flex-1"} space-y-2`}>
                     <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
                     <div className="h-3 bg-gray-200 rounded w-1/2"></div>
@@ -1159,6 +1161,8 @@ export default function CVRecommendationWebsite() {
                         alt={item.display_title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
+
+                      {/* Content type badge */}
                       <div className="absolute top-1 sm:top-2 right-1 sm:right-2">
                         <Badge
                           variant="secondary"
@@ -1169,11 +1173,16 @@ export default function CVRecommendationWebsite() {
                           {item.media_type === "movie" ? "Movie" : "TV"}
                         </Badge>
                       </div>
-                      {item.display_date && new Date(item.display_date).getFullYear() < 1960 && viewMode === "grid" && index < 6 && (
-                        <div className="absolute top-1 sm:top-2 left-1 sm:left-2">
-                          <Badge className="bg-amber-500 text-white font-bold text-xs">Classic</Badge>
-                        </div>
-                      )}
+
+                      {/* Era badge for historical content */}
+                      {item.display_date &&
+                        new Date(item.display_date).getFullYear() < 1960 &&
+                        viewMode === "grid" &&
+                        index < 6 && (
+                          <div className="absolute top-1 sm:top-2 left-1 sm:left-2">
+                            <Badge className="bg-amber-500 text-white font-bold text-xs">Classic</Badge>
+                          </div>
+                        )}
                     </div>
 
                     <CardContent
@@ -1231,6 +1240,7 @@ export default function CVRecommendationWebsite() {
                 ))}
               </div>
 
+              {/* Enhanced Mobile-Responsive Load More Button */}
               {currentPage < totalPages && (
                 <div className="text-center">
                   <Button
