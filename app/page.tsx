@@ -563,7 +563,7 @@ export default function CVRecommendationWebsite() {
 
               <div className="space-y-3 sm:space-y-4">
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  CVRecommendation
+                  CVHRecommendation
                 </h1>
                 <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed px-4">
                   Discover the complete history of cinema and television. From the first films of the 1890s to the
@@ -868,7 +868,7 @@ export default function CVRecommendationWebsite() {
                 </div>
                 <div>
                   <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    CVRecommendation
+                    CVHRecommendation
                   </h1>
                   <p className="text-xs text-gray-500 hidden sm:block">Global Cinema Explorer</p>
                 </div>

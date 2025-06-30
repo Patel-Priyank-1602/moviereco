@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "CVRecommendation",
+  title: "CVHRecommendation",
   description: "Discover the complete history of cinema and television from 1890s to 2025",
   icons: {
     icon: "/cvrr.png",
