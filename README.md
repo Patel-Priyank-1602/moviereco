@@ -1,14 +1,14 @@
-# 🎬 CVRecommendation – Smart Movie & Series Recommender
+# 🎬 CVHRecommendation – Smart Movie & Series Recommender
 
-**CVRecommendation** helps you discover your next favorite movie or series in seconds. Whether you're a fan of Bollywood blockbusters, gripping K-dramas, or timeless Hollywood classics, this sleek and intuitive web app provides personalized suggestions tailored to your preferences.
+**CVHRecommendation** helps you discover your next favorite movie or series in seconds. Whether you're a fan of Bollywood blockbusters, gripping K-dramas, or timeless Hollywood classics, this sleek and intuitive web app provides personalized suggestions tailored to your preferences.
 
-🔗 **Live Demo:** [Try CVRecommendation Now](https://cvrecommendation.netlify.app/)
+🔗 **Live Demo:** [Try CVHRecommendation Now](https://cvrecommendation.netlify.app/)
 
 ---
 
-## 🌟 Why CVRecommendation?
+## 🌟 Why CVHRecommendation?
 
-Tired of endlessly scrolling through OTT platforms? CVRecommendation simplifies your search by asking just a few questions and instantly presenting curated options that match your taste in cinema — Indian or Global.
+Tired of endlessly scrolling through OTT platforms? CVHRecommendation simplifies your search by asking just a few questions and instantly presenting curated options that match your taste in cinema — Indian or Global.
 
 ---
 
